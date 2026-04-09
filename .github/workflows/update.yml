@@ -1,0 +1,29 @@
+name: Sync Sources
+
+on:
+  workflow_dispatch:
+  # schedule:
+  #   - cron: "0 */4 * * *" 
+
+jobs:
+  Sync:
+    runs-on: ubuntu-latest
+    # permissions:
+    #   contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Download Scripts
+        env:
+          DOWNLOAD_URL:       ${{ secrets.DOWNLOAD_URL }}
+        run: |
+          mkdir -p ./sources
+          
+          
