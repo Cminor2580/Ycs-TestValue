@@ -1,7 +1,7 @@
 """
 config_downloader.py
 --------------------
-从 Cloudflare Worker 下载配置文件。
+从 远程存储 下载配置文件。
 支持单文件下载、批量下载（通过远程 INI 清单）。
 可在代码中直接定义 URL，也可由其他脚本调用并传入 URL。
 """
@@ -16,11 +16,14 @@ import requests
 #  基础配置（按需修改）
 # ============================================================
 
-BASE_URL        = "https://config.243672.xyz"   # Worker 域名（不含末尾斜杠）
-TOKEN           = "your_token_here"              # 鉴权 Token
-DOWNLOAD_DIR    = "./downloads"                  # 本地下载根目录
-MANIFEST_PATH   = "manifest/download_list"      # INI 清单在 KV 中的路径
-BATCH_INTERVAL  = 2.5                            # 批量下载间隔（秒）
+DOMAIN          = get_env("DOMAIN")
+ACCESS_KEY      = get_env("ACCESS_KEY")
+
+BASE_URL        = DOMAIN                              # Worker 域名（不含末尾斜杠）
+TOKEN           = ACCESS_KEY                          # 鉴权 Token
+DOWNLOAD_DIR    = "./code"                            # 本地下载根目录
+MANIFEST_PATH   = "iptv/code/config_list.ini"         # INI 清单在 KV 中的路径
+BATCH_INTERVAL  = 2.5                                 # 批量下载间隔（秒）
 
 
 # ============================================================
