@@ -15,6 +15,13 @@ import requests
 # ============================================================
 #  基础配置（按需修改）
 # ============================================================
+def get_env(name: str) -> str:
+    value = os.environ.get(name)
+    if not value:
+        print(f"[ERROR] Environment variable '{name}' is not set or empty.")
+        sys.exit(1)
+    return value
+
 
 DOMAIN          = get_env("DOMAIN")
 ACCESS_KEY      = get_env("ACCESS_KEY")
