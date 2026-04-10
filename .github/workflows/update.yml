@@ -61,7 +61,7 @@ jobs:
     
           for script in "${scripts[@]}"; do
             echo "Running $script..."
-            python "./code/iptv/code/$script"
+            python "./code/iptv/code/process/$script"
           done
 
       - name: List results(extracted)
