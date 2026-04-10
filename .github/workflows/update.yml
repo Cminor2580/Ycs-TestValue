@@ -29,7 +29,7 @@ jobs:
           ACCESS_KEY:   ${{ secrets.ACCESS_KEY}}
         run: |
           mkdir -p ./sources
-          python process/get.py
+          python process/get.py batch
 
       - name: List results
         run: ls -lh ./code/ 2>/dev/null || echo "(no files)"
