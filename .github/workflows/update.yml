@@ -22,8 +22,13 @@ jobs:
 
       - name: Download Scripts
         env:
-          DOWNLOAD_URL:       ${{ secrets.DOWNLOAD_URL }}
+          DOMAIN:       ${{ secrets.DOMAIN }}
+          ACCESS_KEY:   ${{ secrets.ACCESS_KEY}}
         run: |
           mkdir -p ./sources
+          python process/get.py
+
+      - name: List results
+        run: ls -lh ./code/ 2>/dev/null || echo "(no files)"
           
           
