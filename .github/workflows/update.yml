@@ -20,6 +20,9 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Prepare Dependences
+        run: pip install requests openpyxl opencc-python-reimplemented pandas rapidfuzz zhconv
+
       - name: Download Scripts
         env:
           DOMAIN:       ${{ secrets.DOMAIN }}
