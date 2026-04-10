@@ -40,5 +40,40 @@ jobs:
           API_URL:     ${{ secrets.API_URL }}
           TOKEN:       ${{ secrets.TOKEN }}
         run: python ./code/iptv/code/sync/sync.py
+
+      - name: List results
+        run: ls -lh ./sources/ 2>/dev/null || echo "(no files)"
+
+      - name: Extract URLs
+        run: |
+          scripts=(
+            "Extract/extract_urls.py"
+            "Channel_free/channel_free.py"
+            "Channel_pay/channel_pay.py"
+            "Channel_foreign/channel_foreign.py"
+            "Channel_province/channel_province.py"
+            "Channel_province_ground/channel_province_ground.py"
+            "Channel_children/channel_children.py"
+            "Channel_hk/channel_hk.py"
+            "Channel_mo/channel_mo.py"
+            "Channel_tw/channel_tw.py"
+          )
+    
+          for script in "${scripts[@]}"; do
+            echo "Running $script..."
+            python "./code/iptv/code/$script"
+          done
+
+      - name: List results(extracted)
+        run: ls -lh ./sources/temp 2>/dev/null || echo "(no files)"
+
+      - name: Assembly files
+        run: python ./code/iptv/code/assembly/assembly.py
+
+      - name: Release files
+        env:
+          DOMAIN:      ${{ secrets.DOMAIN }}
+          ACCESS_KEY:  ${{ secrets.ACCESS_KEY }}
+        run: python ./code/iptv/code/output/output.py
           
           
