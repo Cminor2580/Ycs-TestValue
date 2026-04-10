@@ -2,14 +2,12 @@ name: Sync Sources
 
 on:
   workflow_dispatch:
-  # schedule:
-  #   - cron: "0 */4 * * *" 
+  schedule:
+     - cron: "0 */4 * * *" 
 
 jobs:
   Sync:
     runs-on: ubuntu-latest
-    # permissions:
-    #   contents: write
 
     steps:
       - name: Checkout
