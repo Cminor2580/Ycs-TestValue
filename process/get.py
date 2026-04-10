@@ -22,7 +22,7 @@ ACCESS_KEY      = get_env("ACCESS_KEY")
 BASE_URL        = DOMAIN                              # Worker 域名（不含末尾斜杠）
 TOKEN           = ACCESS_KEY                          # 鉴权 Token
 DOWNLOAD_DIR    = "./code"                            # 本地下载根目录
-MANIFEST_PATH   = "iptv/code/config_list.ini"         # INI 清单在 KV 中的路径
+MANIFEST_PATH   = "iptv/code/ini/script_urls.ini"         # INI 清单在 KV 中的路径
 BATCH_INTERVAL  = 2.5                                 # 批量下载间隔（秒）
 
 
