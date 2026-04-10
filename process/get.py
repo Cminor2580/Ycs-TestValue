@@ -1,7 +1,7 @@
 """
 config_downloader.py
 --------------------
-从 远程存储 下载配置文件。
+从 Cloudflare Worker 下载配置文件。
 支持单文件下载、批量下载（通过远程 INI 清单）。
 可在代码中直接定义 URL，也可由其他脚本调用并传入 URL。
 """
@@ -15,22 +15,13 @@ import requests
 # ============================================================
 #  基础配置（按需修改）
 # ============================================================
-def get_env(name: str) -> str:
-    value = os.environ.get(name)
-    if not value:
-        print(f"[ERROR] Environment variable '{name}' is not set or empty.")
-        sys.exit(1)
-    return value
 
-
-DOMAIN          = get_env("DOMAIN")
-ACCESS_KEY      = get_env("ACCESS_KEY")
-
-BASE_URL        = DOMAIN                              # Worker 域名（不含末尾斜杠）
-TOKEN           = ACCESS_KEY                          # 鉴权 Token
-DOWNLOAD_DIR    = "./code"                            # 本地下载根目录
-MANIFEST_PATH   = "iptv/code/ini/script_urls.ini"         # INI 清单在 KV 中的路径
-BATCH_INTERVAL  = 2.5                                 # 批量下载间隔（秒）
+DOMAIN          = os.environ["DOMAIN"]           # GitHub 变量中的域名（无前缀）
+BASE_URL        = f"https://{DOMAIN}"            # 自动补全前缀
+ACCESS_KEY      = os.environ["ACCESS_KEY"]       # GitHub 机密中的鉴权密钥
+DOWNLOAD_DIR    = "./code"                  # 本地下载根目录
+MANIFEST_PATH   = "iptv/code/ini/script_urls.ini"      # INI 清单在 KV 中的路径
+BATCH_INTERVAL  = 2.5                            # 批量下载间隔（秒）
 
 
 # ============================================================
@@ -39,7 +30,7 @@ BATCH_INTERVAL  = 2.5                                 # 批量下载间隔（秒
 
 def _build_url(kv_path: str) -> str:
     """拼接完整的读取 URL（不对外暴露）。"""
-    return f"{BASE_URL}/config/read_config/{kv_path}?token={TOKEN}"
+    return f"{BASE_URL}/config/read_config/{kv_path}?token={ACCESS_KEY}"
 
 
 def _post(kv_path: str) -> requests.Response:
