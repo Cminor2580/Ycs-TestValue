@@ -31,7 +31,14 @@ jobs:
           mkdir -p ./sources
           python process/get.py batch
 
-      - name: List results
-        run: ls -lh ./code/ 2>/dev/null || echo "(no files)"
+      - name: Run sync
+        env:
+          UA:          ${{ secrets.UA }}
+          DOMAIN:      ${{ secrets.DOMAIN }}
+          ACCESS_KEY:  ${{ secrets.ACCESS_KEY }}
+          URL_PATH:    ${{ secrets.URL_PATH }}
+          API_URL:     ${{ secrets.API_URL }}
+          TOKEN:       ${{ secrets.TOKEN }}
+        run: python ./code/iptv/code/sync/sync.py
           
           
