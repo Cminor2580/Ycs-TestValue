@@ -27,7 +27,7 @@ jobs:
           ACCESS_KEY:   ${{ secrets.ACCESS_KEY}}
         run: |
           mkdir -p ./sources
-          python process/get.py --debug batch 
+          python process/get.py --hide-path batch 
 
       - name: Run sync
         env:
