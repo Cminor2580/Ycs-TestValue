@@ -73,5 +73,20 @@ jobs:
           DOMAIN:      ${{ secrets.DOMAIN }}
           ACCESS_KEY:  ${{ secrets.ACCESS_KEY }}
         run: python ./code/iptv/code/output/output.py
+
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Clean up old workflow records
+        run: python .github/scripts/clean.py
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          WORKFLOW_NAME: "Sync Sources"
+          KEEP_COUNT: 2
           
           
