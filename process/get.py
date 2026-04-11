@@ -1,7 +1,7 @@
 """
 config_downloader.py
 --------------------
-从 Cloudflare Worker 下载配置文件。
+从远程配置服务下载配置文件。
 支持单文件下载、批量下载（通过远程 INI 清单）。
 可在代码中直接定义 URL，也可由其他脚本调用并传入 URL。
 """
@@ -16,11 +16,11 @@ import requests
 #  基础配置（按需修改）
 # ============================================================
 
-DOMAIN          = os.environ["DOMAIN"]           # GitHub 变量中的域名（无前缀）
+DOMAIN          = os.environ["DOMAIN"]           # 环境变量中的服务域名（无前缀）
 BASE_URL        = f"https://{DOMAIN}"            # 自动补全前缀
-ACCESS_KEY      = os.environ["ACCESS_KEY"]       # GitHub 机密中的鉴权密钥
-DOWNLOAD_DIR    = "./code"                  # 本地下载根目录
-MANIFEST_PATH   = "iptv/code/ini/script_urls.ini"      # INI 清单在 KV 中的路径
+ACCESS_KEY      = os.environ["ACCESS_KEY"]       # 环境变量中的访问密钥
+DOWNLOAD_DIR    = "./code"                       # 本地下载根目录
+MANIFEST_PATH   = "iptv/code/ini/script_urls.ini"      # INI 清单在存储中的路径
 BATCH_INTERVAL  = 2.5                            # 批量下载间隔（秒）
 
 
@@ -28,14 +28,14 @@ BATCH_INTERVAL  = 2.5                            # 批量下载间隔（秒）
 #  内部工具函数
 # ============================================================
 
-def _build_url(kv_path: str) -> str:
+def _build_url(storage_path: str) -> str:
     """拼接完整的读取 URL（不对外暴露）。"""
-    return f"{BASE_URL}/config/read_config/{kv_path}?token={ACCESS_KEY}"
+    return f"{BASE_URL}/config/read_config/{storage_path}?token={ACCESS_KEY}"
 
 
-def _post(kv_path: str) -> requests.Response:
-    """向 Worker 发起 POST 请求（不打印 URL）。"""
-    url = _build_url(kv_path)
+def _fetch(storage_path: str) -> requests.Response:
+    """向服务端发起请求获取配置内容（不打印 URL）。"""
+    url = _build_url(storage_path)
     response = requests.post(url, timeout=15)
     response.raise_for_status()
     return response
@@ -44,7 +44,7 @@ def _post(kv_path: str) -> requests.Response:
 def _save(content: str, rel_path: str, filename: str) -> str:
     """
     将内容保存到本地。
-    本地目录结构与 KV 路径保持一致：DOWNLOAD_DIR / rel_path / filename
+    本地目录结构与存储路径保持一致：DOWNLOAD_DIR / rel_path / filename
     """
     save_dir = os.path.join(DOWNLOAD_DIR, rel_path.replace("/", os.sep))
     os.makedirs(save_dir, exist_ok=True)
@@ -58,11 +58,11 @@ def _save(content: str, rel_path: str, filename: str) -> str:
 #  对外接口
 # ============================================================
 
-def download_file(kv_path: str = None, *, path: str = None, filename: str = None) -> str:
+def download_file(storage_path: str = None, *, path: str = None, filename: str = None, verbose: bool = False) -> str:
     """
     下载单个配置文件。
 
-    用法 A：直接传入 KV 路径字符串
+    用法 A：直接传入存储路径字符串
         download_file("test/test1/000.yaml")
 
     用法 B：分别传入路径和文件名
@@ -70,42 +70,45 @@ def download_file(kv_path: str = None, *, path: str = None, filename: str = None
 
     也可由其他脚本调用：
         from config_downloader import download_file
-        download_file("some/path/file.yaml")
+        download_file("some/path/file.yaml", verbose=True)
 
     返回：本地保存路径
     """
-    if kv_path is None:
+    if storage_path is None:
         if path is None or filename is None:
-            raise ValueError("请提供 kv_path，或同时提供 path 和 filename。")
-        kv_path = f"{path}/{filename}"
+            raise ValueError("请提供 storage_path，或同时提供 path 和 filename。")
+        storage_path = f"{path}/{filename}"
     else:
-        parts    = kv_path.rsplit("/", 1)
+        parts    = storage_path.rsplit("/", 1)
         path     = parts[0] if len(parts) == 2 else ""
         filename = parts[-1]
 
-    print(f"[下载] {filename}  ←  {path}/")
-    response = _post(kv_path)
+    if verbose:
+        print(f"[下载] {filename}  ←  {path}/")
+    response = _fetch(storage_path)
     saved_to = _save(response.text, path, filename)
-    print(f"[完成] 已保存至 {saved_to}")
+    if verbose:
+        print(f"[完成] 已保存至 {saved_to}")
     return saved_to
 
 
-def download_batch(manifest_kv_path: str = None) -> list[str]:
+def download_batch(manifest_storage_path: str = None, verbose: bool = False) -> list[str]:
     """
     批量下载：先获取远程 INI 清单，再逐项下载。
 
-    manifest_kv_path：INI 清单在 KV 中的路径，默认使用代码顶部定义的 MANIFEST_PATH。
+    manifest_storage_path：INI 清单在存储中的路径，默认使用代码顶部定义的 MANIFEST_PATH。
     也可由其他脚本传入：
         from config_downloader import download_batch
-        download_batch("manifest/my_list")
+        download_batch("manifest/my_list", verbose=True)
 
     返回：所有成功下载的本地路径列表
     """
-    target_path = manifest_kv_path or MANIFEST_PATH
+    target_path = manifest_storage_path or MANIFEST_PATH
 
     # ── 1. 拉取 INI 清单 ──
-    print("[清单] 正在获取下载清单...")
-    response = _post(target_path)
+    if verbose:
+        print("[索引] 正在获取下载清单...")
+    response = _fetch(target_path)
     raw_ini  = response.text
 
     # ── 2. 解析 INI ──
@@ -114,46 +117,67 @@ def download_batch(manifest_kv_path: str = None) -> list[str]:
 
     sections = config.sections()
     if not sections:
-        print("[清单] 清单为空，无文件可下载。")
+        if verbose:
+            print("[索引] 清单为空，无文件可下载。")
         return []
 
     total     = len(sections)
     saved     = []
-    errors    = []
+    errors    = []   # 存储 (section, error_msg)
 
-    print(f"[清单] 共发现 {total} 个配置项，即将开始下载...\n")
+    if verbose:
+        print(f"[索引] 共发现 {total} 个配置项，即将开始下载...\n")
 
     for idx, section in enumerate(sections, start=1):
-        kv_path  = config.get(section, "Path",      fallback="").strip()
-        filename = config.get(section, "File_name", fallback="").strip()
+        # 始终显示“正在下载”行（用户要求）
+        print(f"[{idx}/{total}] 正在下载 [{section}]")
 
-        if not kv_path or not filename:
-            print(f"[跳过] [{section}] 缺少 Path 或 File_name，已跳过。")
-            errors.append(section)
+        storage_path = config.get(section, "Path",      fallback="").strip()
+        filename     = config.get(section, "File_name", fallback="").strip()
+
+        if not storage_path or not filename:
+            msg = "缺少 Path 或 File_name"
+            if verbose:
+                print(f"  ✗ {msg}")
+            else:
+                print(f"[{idx}/{total}]下载失败。")
+            errors.append((section, msg))
             continue
 
-        print(f"[{idx}/{total}] 正在下载 [{section}]")
         try:
-            local_path = download_file(path=kv_path, filename=filename)
+            local_path = download_file(storage_path=storage_path, filename=filename, verbose=verbose)
             saved.append(local_path)
+            if not verbose:
+                print(f"[{idx}/{total}]下载成功。")
         except requests.HTTPError as e:
-            print(f"  ✗ HTTP 错误：{e.response.status_code}")
-            errors.append(section)
+            msg = f"HTTP {e.response.status_code}"
+            if verbose:
+                print(f"  ✗ {msg}")
+            else:
+                print(f"[{idx}/{total}]下载失败。")
+            errors.append((section, msg))
         except requests.RequestException as e:
-            print(f"  ✗ 网络错误：{e}")
-            errors.append(section)
+            msg = f"网络错误：{e}"
+            if verbose:
+                print(f"  ✗ {msg}")
+            else:
+                print(f"[{idx}/{total}]下载失败。")
+            errors.append((section, msg))
 
-        # ── 间隔等待（最后一个不等待）──
+        # ── 间隔等待（最后一个不等待，且 verbose 时才打印等待信息）──
         if idx < total:
-            print(f"  等待 {BATCH_INTERVAL} 秒...")
+            if verbose:
+                print(f"  等待 {BATCH_INTERVAL} 秒...")
             time.sleep(BATCH_INTERVAL)
 
-    # ── 3. 汇总 ──
-    print(f"\n{'='*40}")
-    print(f"下载完成：成功 {len(saved)} 个，失败 {len(errors)} 个。")
-    if errors:
-        print(f"失败项：{', '.join(errors)}")
-    print(f"{'='*40}")
+    # ── 3. 汇总（仅 verbose 模式）──
+    if verbose:
+        print(f"\n{'='*40}")
+        print(f"下载完成：成功 {len(saved)} 个，失败 {len(errors)} 个。")
+        if errors:
+            err_sections = [e[0] for e in errors]
+            print(f"失败项：{', '.join(err_sections)}")
+        print(f"{'='*40}")
 
     return saved
 
@@ -165,25 +189,26 @@ def download_batch(manifest_kv_path: str = None) -> list[str]:
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Cloudflare Worker 配置下载器")
-    sub    = parser.add_subparsers(dest="command")
+    parser = argparse.ArgumentParser(description="远程配置下载工具")
+    parser.add_argument("--debug", action="store_true", help="显示详细调试信息（文件路径、等待时间等）")
+    sub = parser.add_subparsers(dest="command")
 
     # 子命令：单文件
     p_single = sub.add_parser("single", help="下载单个配置文件")
-    p_single.add_argument("kv_path", help="KV 路径，例如 test/test1/000.yaml")
+    p_single.add_argument("storage_path", help="存储路径，例如 test/test1/000.yaml")
 
     # 子命令：批量
     p_batch = sub.add_parser("batch", help="批量下载（从远程 INI 清单）")
     p_batch.add_argument(
         "--manifest", default=None,
-        help=f"INI 清单的 KV 路径（默认：{MANIFEST_PATH}）"
+        help=f"INI 清单的存储路径（默认：{MANIFEST_PATH}）"
     )
 
     args = parser.parse_args()
 
     if args.command == "single":
-        download_file(args.kv_path)
+        download_file(args.storage_path, verbose=args.debug)
     elif args.command == "batch":
-        download_batch(args.manifest)
+        download_batch(args.manifest, verbose=args.debug)
     else:
         parser.print_help()
