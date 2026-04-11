@@ -16,15 +16,15 @@ import requests
 #  基础配置（按需修改）
 # ============================================================
 
-DOMAIN          = os.environ["DOMAIN"]           # 服务域名（无前缀，来自外部环境变量）
-BASE_URL        = f"https://{DOMAIN}"            # 自动补全前缀
-ACCESS_KEY      = os.environ["ACCESS_KEY"]       # 访问密钥（来自外部环境变量）
-DOWNLOAD_DIR    = "./code"                  # 本地同步根目录
-MANIFEST_PATH   = "iptv/code/ini/script_urls.ini"      # 远程清单文件路径
-BATCH_INTERVAL  = 2.5                            # 批量同步间隔（秒）
+DOMAIN         = os.environ["DOMAIN"]       # 服务域名（无前缀，来自外部环境变量）
+BASE_URL       = f"https://{DOMAIN}"        # 自动补全前缀
+ACCESS_KEY     = os.environ["ACCESS_KEY"]   # 访问密钥（来自外部环境变量）
+DOWNLOAD_DIR   = "./code"              # 本地同步根目录
+MANIFEST_PATH  = "iptv/code/ini/script_urls.ini"  # 远程清单文件路径
+BATCH_INTERVAL = 2.5                        # 批量同步间隔（秒）
 
 # 路径隐藏模式：设为 True 时，终端输出不显示任何路径信息
-HIDE_PATH       = False
+HIDE_PATH      = False
 
 
 # ============================================================
@@ -54,16 +54,11 @@ def _save(content: str, rel_path: str, filename: str) -> str:
     return filepath
 
 
-def _mask(text: str) -> str:
-    """在隐藏模式下将路径替换为占位符。"""
-    return "***" if HIDE_PATH else text
-
-
 # ============================================================
 #  对外接口
 # ============================================================
 
-def download_file(remote_path: str = None, *, path: str = None,
+def download_file(remote_path: str = None, *, dir_path: str = None,
                   filename: str = None, hide_path: bool = None) -> str:
     """
     下载单个配置文件。
@@ -72,7 +67,7 @@ def download_file(remote_path: str = None, *, path: str = None,
         download_file("test/test1/000.yaml")
 
     用法 B：分别传入目录和文件名
-        download_file(path="test/test1", filename="000.yaml")
+        download_file(dir_path="test/test1", filename="000.yaml")
 
     hide_path：是否隐藏路径输出，不传则使用全局 HIDE_PATH 设置。
 
@@ -81,25 +76,23 @@ def download_file(remote_path: str = None, *, path: str = None,
     _hide = HIDE_PATH if hide_path is None else hide_path
 
     if remote_path is None:
-        if path is None or filename is None:
-            raise ValueError("请提供 remote_path，或同时提供 path 和 filename。")
-        remote_path = f"{path}/{filename}"
+        if dir_path is None or filename is None:
+            raise ValueError("请提供 remote_path，或同时提供 dir_path 和 filename。")
+        remote_path = f"{dir_path}/{filename}"
     else:
         parts    = remote_path.rsplit("/", 1)
-        path     = parts[0] if len(parts) == 2 else ""
+        dir_path = parts[0] if len(parts) == 2 else ""
         filename = parts[-1]
 
-    if _hide:
-        print(f"[同步] {_mask(filename)}")
-    else:
-        print(f"[同步] {filename}  ←  {path}/")
+    # 非隐藏模式：打印详细信息
+    if not _hide:
+        print(f"[同步] {filename}  ←  {dir_path}/")
 
     response = _post(remote_path)
-    saved_to = _save(response.text, path, filename)
+    saved_to = _save(response.text, dir_path, filename)
 
-    if _hide:
-        print(f"[完成] 已保存至 {_mask(saved_to)}")
-    else:
+    # 非隐藏模式：打印保存路径
+    if not _hide:
         print(f"[完成] 已保存至 {saved_to}")
 
     return saved_to
@@ -141,23 +134,29 @@ def download_batch(manifest_path: str = None, hide_path: bool = None) -> list[st
         item_path = config.get(section, "Path",      fallback="").strip()
         filename  = config.get(section, "File_name", fallback="").strip()
 
+        # 第一行：进度 + 项目名
+        # section 为空时省略方括号部分
+        if section:
+            print(f"[{idx}/{total}] 正在同步 [{section}]")
+        else:
+            print(f"[{idx}/{total}] 正在同步")
+
         if not item_path or not filename:
-            label = _mask(section) if _hide else section
-            print(f"[跳过] [{label}] 缺少必要字段，已跳过。")
+            print(f"[{idx}/{total}] 同步失败（缺少必要字段）")
             errors.append(section)
             continue
 
-        label = _mask(section) if _hide else section
-        print(f"[{idx}/{total}] 正在同步 [{label}]")
-
         try:
-            local_path = download_file(path=item_path, filename=filename, hide_path=_hide)
-            saved.append(local_path)
+            download_file(dir_path=item_path, filename=filename, hide_path=_hide)
+            saved.append(f"{item_path}/{filename}")
+            # 隐藏模式：用简洁的第二行替代详细输出
+            if _hide:
+                print(f"[{idx}/{total}] 同步成功")
         except requests.HTTPError as e:
-            print(f"  ✗ 请求失败：状态码 {e.response.status_code}")
+            print(f"[{idx}/{total}] 同步失败（状态码 {e.response.status_code}）")
             errors.append(section)
         except requests.RequestException as e:
-            print(f"  ✗ 网络错误：{e}")
+            print(f"[{idx}/{total}] 同步失败（网络错误：{e}）")
             errors.append(section)
 
         # ── 间隔等待（最后一个不等待）──
@@ -168,9 +167,8 @@ def download_batch(manifest_path: str = None, hide_path: bool = None) -> list[st
     # ── 3. 汇总 ──
     print(f"\n{'='*40}")
     print(f"同步完成：成功 {len(saved)} 个，失败 {len(errors)} 个。")
-    if errors:
-        err_labels = [_mask(e) if _hide else e for e in errors]
-        print(f"失败项：{', '.join(err_labels)}")
+    if errors and not _hide:
+        print(f"失败项：{', '.join(errors)}")
     print(f"{'='*40}")
 
     return saved
