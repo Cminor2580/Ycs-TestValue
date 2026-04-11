@@ -40,7 +40,7 @@ jobs:
         run: python ./code/iptv/code/sync/sync.py
 
       - name: List results
-        run: ls -lh ./sources/ 2>/dev/null || echo "(no files)"
+        run: ls -lh -v ./sources/ 2>/dev/null || echo "(no files)"
 
       - name: Extract URLs
         run: |
@@ -63,7 +63,7 @@ jobs:
           done
 
       - name: List results(extracted)
-        run: ls -lh ./sources/temp 2>/dev/null || echo "(no files)"
+        run: ls -lh -v ./sources/temp 2>/dev/null || echo "(no files)"
 
       - name: Assembly files
         run: python ./code/iptv/code/assembly/assembly.py
